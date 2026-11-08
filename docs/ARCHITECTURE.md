@@ -21,30 +21,20 @@ faculty substitution with push notifications.
 
 ## 2. System context
 
-```
-                    ┌──────────────────────────────┐
-                    │        React Frontend        │
-                    │  Admin · Faculty · Student   │
-                    └──────┬───────────────┬───────┘
-                           │               │
-              Supabase JS   │               │  HTTPS / JSON
-                           ▼               ▼
-              ┌────────────────────┐  ┌────────────────────┐
-              │     Supabase       │  │  Solver Microservice│
-              │  Postgres + Auth   │  │  FastAPI + OR-Tools │
-              │  RLS · Realtime    │  │  CP-SAT             │
-              └─────────┬──────────┘  └────────────────────┘
-                        │
-                        ▼
-              ┌────────────────────┐
-              │  Push Provider     │
-              │  (FCM via Edge Fn) │
-              └────────────────────┘
+```text
+React + TypeScript frontend (localhost:5173)
+        |                         |
+        | Supabase JS              | HTTPS JSON (VITE_API_URL)
+        v                         v
+Supabase PostgreSQL       Spring Boot API (localhost:8000)
+Auth, RLS, Realtime       Google OR-Tools Java CP-SAT (in process)
+                          Substitution helpers + email dispatch
 ```
 
-Three runtime components plus one external push provider. The frontend never
-talks to the database except through Supabase; it never runs the solver
-itself — generation is delegated to the solver microservice.
+The React frontend keeps its existing Supabase data flow. Timetable generation,
+substitution ranking/resolution, and email dispatch use the Java REST API. The
+CP-SAT solver runs inside the Spring Boot process; the application has no
+Python solver runtime or solver URL.
 
 ## 3. Components
 
@@ -60,7 +50,7 @@ itself — generation is delegated to the solver microservice.
   - **Student view:** read-only section timetable; substitution / free-lecture
     notifications inbox.
 - Talks to Supabase directly for CRUD (via Row-Level Security) and to the
-  solver service for generation. Receives push notifications for substitution
+  Spring Boot API for generation and substitution helpers. Receives push notifications for substitution
   events.
 
 ### 3.2 Data & auth layer — Supabase (PostgreSQL)
@@ -72,10 +62,10 @@ itself — generation is delegated to the solver microservice.
   so Faculty/Student cannot read outside their scope even via direct API calls.
 - **Realtime** (optional) for live updates of substitution request status.
 
-### 3.3 Solver microservice — FastAPI + Google OR-Tools CP-SAT
+### 3.3 Backend and solver — Spring Boot + Google OR-Tools CP-SAT
 
-- Standalone Python service (kept separate because Supabase Edge Functions
-  have execution-time limits unsuitable for solver runs).
+- Java 17+ Spring Boot REST service with Google OR-Tools Java CP-SAT running
+  inside the backend process; no Python runtime or remote solver is involved.
 - `POST /generate`: accepts a snapshot JSON of entities + constraints,
   returns timetable entries or an infeasibility report.
 - `GET /health`: liveness probe.
@@ -84,8 +74,8 @@ itself — generation is delegated to the solver microservice.
 
 ### 3.4 Substitution engine
 
-Lives in the backend tier (Supabase Edge Function or a small FastAPI module —
-decision below). Responsibilities:
+Pure substitution ranking and resolution endpoints live in the Spring Boot
+backend. Responsibilities:
 
 1. On a faculty substitution request, compute candidate faculty in priority order:
    - **P1** — faculty already teaching that section AND free in the slot.
@@ -133,9 +123,9 @@ decision below). Responsibilities:
 
 1. Admin clicks **Generate Timetable**.
 2. Frontend snapshots entities + constraints from Supabase.
-3. Snapshot POSTed to solver `/generate`.
-4. Solver builds one decision variable per required course session:
-   `(time_slot, room, faculty)` and enforces:
+3. Snapshot POSTed to Spring Boot `/generate`.
+4. Java CP-SAT builds Boolean assignment variables for session/time, session/room,
+   and session/faculty combinations and enforces:
    - **Hard:** no double-booking of faculty/room/section per slot; room
      capacity & type fit; faculty qualified; faculty load ≤ max; elective
      sessions only in reserved blocks.
@@ -180,18 +170,19 @@ Fan-out: push + inbox to candidates (deadline = lecture_start + 10 min)
   - Faculty: read own `timetable_entries` (via published versions), read/write
     own substitution requests and candidate responses.
   - Student: read own section's published timetable + own notifications.
-- Service-role key used **only** server-side (solver persistence, push sender).
+- Service-role key used **only** server-side (server-side operations only).
 
 ## 8. API contracts
 
-### Solver service
+### Spring Boot API
 
-- `POST /generate` — body: `{ entities: {...}, constraints: [...] }`;
-  response: `{ version: {...}, entries: [...], violations: [...] }` or
-  `{ infeasible: true, causes: [...] }`.
+- `POST /generate` — body: the snapshot contract in `frontend/src/lib/timetable.ts`;
+  response: `{ status, entries, violations, causes }`.
 - `GET /health` — `{ "status": "ok" }`.
+- `POST /substitutions/rank`, `/substitutions/resolve`, and
+  `/notifications/email` retain the current frontend contracts.
 
-### Substitution (Edge Function or FastAPI module)
+### Substitution API (Spring Boot)
 
 - `POST /substitutions` — create request (faculty).
 - `POST /substitutions/{id}/respond` — accept/reject (candidate faculty).
@@ -204,7 +195,7 @@ Fan-out: push + inbox to candidates (deadline = lecture_start + 10 min)
 |---|---|
 | Frontend | Vercel (static) |
 | Supabase | Hosted (Postgres + Auth + Edge Functions) |
-| Solver | Small compute instance (e.g. Fly.io / Render) via Docker |
+| Backend + solver | Java 17 Spring Boot service (Dockerfile in `backend/`) |
 | Push | Firebase Cloud Messaging |
 
 No specialised hardware; CP-SAT solves institution-scale instances in
@@ -224,7 +215,7 @@ seconds to a few minutes on commodity compute.
 
 ## 11. Open decisions
 
-1. Substitution engine hosting: Supabase Edge Function vs. FastAPI module
-   (recommend Edge Function for colocation with RLS, unless long polling is needed).
+1. The Spring Boot API provides stateless ranking/resolution helpers; Supabase
+   stores requests, responses, and penalties.
 2. Web push vs. native app shell for FCM on mobile (V1: web push).
 3. Tie-break rule inside one priority level (proposed: lowest weekly load, then earliest response).

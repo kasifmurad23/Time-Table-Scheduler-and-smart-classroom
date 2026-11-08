@@ -130,7 +130,7 @@ def build_docx():
         footer = section.footer
         fp = footer.paragraphs[0]
         fp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        frun = fp.add_run("Approved Architecture Baseline • Confidential")
+        frun = fp.add_run("Approved Architecture Baseline â€¢ Confidential")
         frun.font.name = "Calibri"
         frun.font.size = Pt(8.5)
         frun.font.color.rgb = RGBColor(148, 163, 184)
@@ -351,7 +351,7 @@ def build_docx():
     pivots = [
         ("Student Account Model", "Individual Supabase Auth accounts (email/password), profiles table with student role.", "Zero-Account Passkey Access: Students store no PII. Access via Section Code + Passkey RPC."),
         ("Administrative Login Discovery", "Prominent Admin tab on public login landing page.", "Security by Obscurity: Public login shows Student & Faculty. Admin gated in muted footer trigger to block probes."),
-        ("Microservice Hosting & Solver Gateway", "External PaaS (Render / Fly.io) subject to cold starts (1-2m) and distributed domains.", "Vercel Multi-Service: Vite + FastAPI Gateway + internal CP-SAT Solver via private IPC service bindings."),
+        ("Microservice Hosting & Solver Gateway", "External PaaS (Render / Fly.io) subject to cold starts (1-2m) and distributed domains.", "Static Vite frontend plus separately deployed Java Spring Boot API with in-process CP-SAT solver."),
         ("Timetable Color Model for Substitutions", "Binary scheduled/free lecture state.", "Real-Time Trinary Color States: Yellow (pending), Green (assigned), Red (expired/unfilled)."),
         ("Substitution Timing Constraints", "Arbitrary advance scheduling permitted.", "Strict Day-Of Temporal Guard: Requests valid only on lecture day before lecture starts."),
     ]
@@ -366,7 +366,7 @@ def build_docx():
     add_bullet(" Academic Registrar / Timetable Coordinator. Configures academic resources (rooms, programs, courses, faculty), executes the CP-SAT solver, reviews soft-constraint conflicts, manages section passkeys, and publishes official versions.", "System Administrator:")
     add_bullet(" Authenticated faculty profile. Views weekly timetable, initiates same-day substitution requests, accepts/declines incoming substitution requests, and monitors personal workload.", "Faculty Member:")
     add_bullet(" Unauthenticated student or coordinator. Views live published section schedules via Section Code and Passkey, toggles laboratory batch filters (Batch 1 / Batch 2), and tracks real-time substitution highlights.", "Student / Class Coordinator:")
-    add_bullet(" Automated worker services executing mathematical optimization, candidate scoring, and proxy routing.", "Internal Microservices (Solver & API Gateway):")
+    add_bullet(" Spring Boot handles REST requests, candidate scoring, and in-process Google OR-Tools Java CP-SAT.", "Java Backend (REST API and CP-SAT solver):")
 
     # ------------------ SECTION 3 ------------------
     add_h1("3. System Features & Functional Requirements")
@@ -404,15 +404,15 @@ def build_docx():
 
     # ------------------ SECTION 4 ------------------
     add_h1("4. External Interface & Architectural Requirements")
-    add_p("The TS-SC platform is deployed as a consolidated Vercel Project containing three distinct services interacting via internal service bindings:")
+    add_p("The static React frontend is deployed on Vercel; the Spring Boot API runs separately and executes CP-SAT in process:")
     add_bullet("Single-Page Application deployed on Vercel's Edge CDN, routing all public UI traffic from /(.*). Communicates directly with Supabase via Supabase JS SDK.", "Service 'frontend' (Vite + React + TypeScript): ")
-    add_bullet("FastAPI public reverse proxy exposed at /api/(.*), forwarding requests securely to the solver.", "Service 'api' (FastAPI Public Gateway): ")
-    add_bullet("FastAPI microservice executing Google OR-Tools CP-SAT algorithms, kept completely internal without direct public internet exposure. Receives requests via Vercel service binding SOLVER_URL.", "Service 'solver' (Internal Optimization Worker): ")
+    add_bullet("Spring Boot REST API serves /api routes and runs OR-Tools CP-SAT in process.", "Spring Boot API Service:  ")
+    add_bullet("Java Spring Boot backend executing Google OR-Tools Java CP-SAT; no separate solver service or Python runtime is required.", "In-Process Java Solver:  ")
     add_bullet("PostgreSQL 15 database hosted on Supabase Cloud, utilizing Row-Level Security (RLS) for faculty data isolation and stored procedure RPCs for student access.", "Database & BaaS Tier (Supabase Cloud): ")
 
     add_callout_box(
         doc,
-        "Vercel service bindings resolve dynamically in serverless functions at runtime without exposing the internal solver service to the public internet.",
+        "The frontend calls the separately deployed Java API; configure its origin in VITE_API_URL and allow it via CORS_ALLOWED_ORIGINS.",
         "ARCHITECTURE NOTE"
     )
 
@@ -448,9 +448,9 @@ def build_docx():
     add_diagram_image("docs/diagrams/diagram_6.png", "UML State Machine Diagram — Substitution Request Lifecycle & Trinary UI Colors", 6, max_width=5.8)
 
     doc.add_page_break()
-    add_h2("5.7 UML Deployment Diagram: Consolidated Vercel Multi-Service Architecture")
-    add_p("Maps physical and virtual execution containers, internal service bindings, and external BaaS infrastructure.")
-    add_diagram_image("docs/diagrams/diagram_7.png", "UML Deployment Diagram — Multi-Service Topography & Supabase Cloud", 7, max_width=6.2)
+    add_h2("5.7 UML Deployment Diagram: Static Frontend and Java Backend")
+    add_p("Maps the static React frontend, Spring Boot API with in-process CP-SAT, and external Supabase infrastructure.")
+    add_diagram_image("docs/diagrams/diagram_7.png", "UML Deployment Diagram - React Frontend, Spring Boot API with In-Process Java CP-SAT, and Supabase", 7, max_width=6.2)
 
     # ------------------ SECTION 6 ------------------
     add_h1("6. Non-Functional Requirements (NFR)")
@@ -460,7 +460,7 @@ def build_docx():
     add_bullet("No personal identifiable information (PII) such as student enrollment IDs, names, or contact data shall be stored in any database table.", "NFR-S1 (Zero-Trust Student Privacy): ")
     add_bullet("Student schedule retrieval must execute under a SECURITY DEFINER stored function that isolates access solely to verified section codes and matching passkeys.", "NFR-S2 (RPC Encapsulation): ")
     add_bullet("The administrative authentication mechanism must remain unindexed and hidden behind an opaque trigger to eliminate automated dictionary attack vectors.", "NFR-S3 (Admin Route Obfuscation): ")
-    add_bullet("Deployment on Vercel services with multi-service binding shall eliminate the 1-2 minute inactive spin-up latency characteristic of legacy free-tier PaaS providers.", "NFR-R1 (Zero Cold Starts): ")
+    add_bullet("Deployment on The Spring Boot service shall remain available to the frontend; hosting and scaling are controlled by its deployment provider.", "NFR-R1 (Zero Cold Starts): ")
     add_bullet("The timetable solver shall never fail silently; when an infeasible state occurs, a diagnostic relaxation breakdown shall identify the violating constraint group.", "NFR-R2 (Explainable Infeasibility): ")
 
     # ------------------ SECTION 7 ------------------
@@ -483,7 +483,7 @@ def build_docx():
         ("F-REQ-4.1 – 4.2", "Zero-Account Passkey Access", "Figure 1 (Use Case) & Figure 7", "Security Penetration Audit", "Implemented"),
         ("F-REQ-4.3", "Color-Coded Timetable Grid", "Figure 6 (State Machine)", "UI Snapshot Test", "Implemented"),
         ("F-REQ-5.1 – 5.2", "Obfuscated Administrative Login", "Figure 1 (Use Case) & Figure 7", "Vulnerability Scan", "Implemented"),
-        ("NFR-R1", "Vercel Multi-Service Binding", "Figure 7 (Deployment Diagram)", "End-to-End Latency Probe", "Implemented"),
+        ("NFR-R1", "Spring Boot REST API", "Figure 7 (Deployment Diagram)", "End-to-End Latency Probe", "Implemented"),
     ]
     for r in rtm_rows:
         row = rtm_table.add_row()

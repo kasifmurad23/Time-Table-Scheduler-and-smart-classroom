@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { SOLVER_URL } from './timetable'
+import { API_URL } from './timetable'
 
 export interface RankedCandidate {
   faculty_id: string
@@ -25,7 +25,7 @@ export interface SendEmailPayload {
 
 export async function sendEmailNotification(payload: SendEmailPayload): Promise<boolean> {
   try {
-    const res = await fetch(`${SOLVER_URL}/notifications/email`, {
+    const res = await fetch(`${API_URL}/notifications/email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -109,7 +109,7 @@ async function rank(input: {
   all_faculty_ids: string[]
   faculty_loads: Record<string, number>
 }): Promise<RankedCandidate[]> {
-  const res = await fetch(`${SOLVER_URL}/substitutions/rank`, {
+  const res = await fetch(`${API_URL}/substitutions/rank`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -120,7 +120,7 @@ async function rank(input: {
     return (JSON.parse(text) as { candidates: RankedCandidate[] }).candidates
   } catch {
     throw new Error(
-      `Ranking failed: solver returned non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`,
+      `Ranking failed: API returned non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`,
     )
   }
 }
@@ -130,7 +130,7 @@ async function resolveRemote(
   deadlinePassed: boolean,
 ): Promise<{ winner_faculty_id: string | null; should_resolve: boolean; penalties: { faculty_id: string; reason: string }[] }> {
   try {
-    const res = await fetch(`${SOLVER_URL}/substitutions/resolve`, {
+    const res = await fetch(`${API_URL}/substitutions/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidates, deadline_passed: deadlinePassed }),

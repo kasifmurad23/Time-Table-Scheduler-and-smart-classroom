@@ -1,0 +1,11 @@
+flowchart TB
+    Browser[Browser]
+    Frontend[React + TypeScript + Vite static frontend]
+    API[Java 17+ Spring Boot REST API]
+    Solver[Google OR-Tools Java CP-SAT solver<br/>In the Spring Boot process]
+    Supabase[Supabase PostgreSQL, Auth, and RLS]
+
+    Browser --> Frontend
+    Frontend -->|HTTPS JSON via VITE_API_URL| API
+    API -->|In-process Java call| Solver
+    Frontend -->|Supabase JS, authenticated and RLS scoped| Supabase

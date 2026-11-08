@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { buildSnapshot, SOLVER_URL } from '../../lib/timetable'
+import { API_URL, buildSnapshot } from '../../lib/timetable'
 import {
   SparklesIcon,
   CheckCircleIcon,
@@ -37,12 +37,12 @@ export default function GeneratePage() {
 
   async function checkHealth() {
     try {
-      const res = await fetch(`${SOLVER_URL}/health`, { signal: AbortSignal.timeout(3000) })
+      const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(3000) })
       setSolverOnline(res.ok)
     } catch {
-      if (SOLVER_URL.includes('localhost')) {
+      if (API_URL.includes('localhost')) {
         try {
-          const fallback = SOLVER_URL.replace('localhost', '127.0.0.1')
+          const fallback = API_URL.replace('localhost', '127.0.0.1')
           const res2 = await fetch(`${fallback}/health`, { signal: AbortSignal.timeout(3000) })
           if (res2.ok) {
             setSolverOnline(true)
@@ -64,7 +64,7 @@ export default function GeneratePage() {
 
     try {
       const snapshot = await buildSnapshot()
-      let solverEndpoint = `${SOLVER_URL}/generate`
+      let solverEndpoint = `${API_URL}/generate`
       let res: Response
       try {
         res = await fetch(solverEndpoint, {
@@ -73,8 +73,8 @@ export default function GeneratePage() {
           body: JSON.stringify(snapshot),
         })
       } catch (err) {
-        if (SOLVER_URL.includes('localhost')) {
-          solverEndpoint = `${SOLVER_URL.replace('localhost', '127.0.0.1')}/generate`
+        if (API_URL.includes('localhost')) {
+          solverEndpoint = `${API_URL.replace('localhost', '127.0.0.1')}/generate`
           res = await fetch(solverEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -84,7 +84,7 @@ export default function GeneratePage() {
           throw err
         }
       }
-      if (!res.ok) throw new Error(`Solver returned HTTP ${res.status}`)
+      if (!res.ok) throw new Error(`API returned HTTP ${res.status}`)
       const data = await res.json()
 
       if (data.status === 'infeasible') {
@@ -136,7 +136,7 @@ export default function GeneratePage() {
             <span>Automated Timetable Generator</span>
           </h1>
           <p className="page-subtitle">
-            Snapshots active institutional entities and triggers the Google OR-Tools CP-SAT constraint programming microservice.
+            Snapshots active institutional entities and runs the Google OR-Tools CP-SAT timetable solver in the Java backend.
           </p>
         </div>
 
@@ -189,7 +189,7 @@ export default function GeneratePage() {
           </div>
 
           <p className="text-muted" style={{ fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-            When you run generation, the solver assembles all active courses, student sections, room capacities, faculty qualification matrices, and time slot grids into a unified constraint satisfaction problem.
+            When you run generation, the Java CP-SAT solver assembles active courses, student sections, room capacities, faculty qualifications, and time slots into a unified constraint satisfaction problem.
           </p>
 
           <button
@@ -201,7 +201,7 @@ export default function GeneratePage() {
             {busy ? (
               <>
                 <RefreshIcon size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                <span>Running CP-SAT Solver Microservice…</span>
+                <span>Running Java CP-SAT Solver…</span>
               </>
             ) : (
               <>
@@ -217,9 +217,9 @@ export default function GeneratePage() {
               <div>
                 <strong>Solver service not reachable</strong>
                 <div style={{ marginTop: 2, fontSize: '0.8125rem' }}>
-                  Make sure the FastAPI solver is running on port 8000:
+                  Make sure the Java backend is running on port 8000:
                   <br />
-                  <code className="font-mono">uvicorn app.main:app --reload --port 8000</code>
+                  <code className="font-mono">mvn spring-boot:run</code>
                 </div>
               </div>
             </div>

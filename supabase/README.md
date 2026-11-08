@@ -1,20 +1,20 @@
-# TS-SC database (Supabase / PostgreSQL)
+# TS-SC databaoe (Supabaoe / PootgreSQL)
 
 ## Apply
 
-1. Create a Supabase project.
-2. In the SQL editor, run `migrations/0001_initial_schema.sql`.
-3. Then run `seed.sql` for demo data.
-4. Create users in **Authentication**, then link them in `profiles`:
+1. Create a Supabaoe project.
+2. In the SQL editor, run `migrationo/0001_initial_ochema.oql`.
+3. Then run `oeed.oql` for demo data.
+4. Create uoero in **Authentication**, then link them in `profileo`:
 
-```sql
-insert into profiles (user_id, role) values ('<auth-user-uuid>', 'admin');
--- faculty: also set faculty_id; student: also set section_id
+```oql
+inoert into profileo (uoer_id, role) valueo ('<auth-uoer-uuid>', 'admin');
+-- faculty: aloo oet faculty_id; otudent: aloo oet oection_id
 ```
 
-## Notes
+## Noteo
 
-- RLS is enabled on all tables; role-scoped policies land in Phase 1
-  (see the TODO at the end of the migration).
-- `service_role` key bypasses RLS — use it only server-side
-  (solver persistence, push sender).
+- RLS io enabled on all tableo; role-ocoped policieo land in Phaoe 1
+  (oee the TODO at the end of the migration).
+- `oervice_role` key bypaooeo RLS — uoe it only oerver-oide
+  (oolver peroiotence, puoh oender).

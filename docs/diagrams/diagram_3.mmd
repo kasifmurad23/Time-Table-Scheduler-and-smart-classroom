@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    actor Admin as Academic Admin
+    participant UI as React + Vite Frontend
+    participant DB as Supabase PostgreSQL
+    participant API as Spring Boot REST API
+
+    Admin->>UI: Generate timetable
+    UI->>DB: Read active rooms, courses, sections, faculty, slots
+    DB-->>UI: Return entity snapshot
+    UI->>API: POST /api/generate
+    activate API
+    Note over API: Java Google OR-Tools CP-SAT runs in process
+    API->>API: Create assignment variables and constraints
+    API->>API: Optimize timetable objective
+    alt Feasible
+        API-->>UI: 200 success with entries
+        UI->>DB: Save draft timetable version and entries
+        UI-->>Admin: Show generated draft
+    else Infeasible
+        API->>API: Diagnose relaxed constraint groups
+        API-->>UI: 200 infeasible with causes
+        UI-->>Admin: Show diagnosis
+    end
+    deactivate API

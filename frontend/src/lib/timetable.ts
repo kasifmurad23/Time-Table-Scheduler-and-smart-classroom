@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-/** Shape expected by the solver's POST /generate (see solver/app/schemas.py). */
+/** Shape expected by the Spring Boot API's POST /generate. */
 export interface GenerateRequest {
   institution_id: string
   sections: { id: string; strength: number; batch_count?: number }[]
@@ -34,7 +34,7 @@ async function fetchSections(): Promise<{ id: string; strength: number; batch_co
   return (res.data ?? []).map((s) => ({ ...s, batch_count: s.batch_count ?? 1 }))
 }
 
-/** Assemble the solver snapshot from current Supabase data (admin only). */
+/** Assemble the timetable snapshot from current Supabase data (admin only). */
 export async function buildSnapshot(): Promise<GenerateRequest> {
   const institutions = await must<{ id: string }[]>(
     supabase.from('institutions').select('id').limit(1),
@@ -101,10 +101,9 @@ export async function buildSnapshot(): Promise<GenerateRequest> {
     qualifications,
     elective_blocks: blocks.map((b) => b.time_slot_id),
     weights,
-    time_limit_seconds: !import.meta.env.VITE_SOLVER_URL || import.meta.env.VITE_SOLVER_URL === '/api' ? 10 : 60,
+    time_limit_seconds: 60,
   }
 }
 
-export const SOLVER_URL =
-  (import.meta.env.VITE_SOLVER_URL as string | undefined) ||
-  (import.meta.env.PROD ? '/api' : 'http://localhost:8000')
+export const API_URL =
+  (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:8000'

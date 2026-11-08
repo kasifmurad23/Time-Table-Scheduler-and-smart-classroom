@@ -563,11 +563,11 @@ export default function AdminDashboard() {
                 Timetable Generator
               </h3>
               <p className="action-card-desc">
-                Execute the Google OR-Tools CP-SAT solver microservice. Formulates hard constraints (zero faculty/room/section clashes) and soft optimizations (load balancing, gap minimization).
+                Execute the Google OR-Tools CP-SAT solver in the Java backend. It applies hard constraints (zero faculty/room/section clashes) and soft optimizations (load balancing, gap minimization).
               </p>
             </div>
             <div className="action-card-arrow">
-              <span>Launch Solver Microservice</span>
+              <span>Launch Timetable Generator</span>
               <ArrowRightIcon size={16} />
             </div>
           </Link>

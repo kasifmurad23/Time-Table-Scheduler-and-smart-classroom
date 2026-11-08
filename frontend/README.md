@@ -11,6 +11,10 @@ cp ../.env.example .env   # then fill in VITE_* values
 npm run dev               # http://localhost:5173
 ```
 
+Set `VITE_API_URL` to the Spring Boot API origin (local default:
+`http://localhost:8000`) and run the backend separately. See the repository
+root README for Java/Maven setup and Windows PowerShell instructions.
+
 ## Roadmap
 
 - Phase 2: Admin entity CRUD

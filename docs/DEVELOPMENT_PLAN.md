@@ -21,8 +21,8 @@ ends with something demoable. See `ARCHITECTURE.md` for the system design.
 ## Phase 0 — Repo setup & foundations (Week 1)
 
 - [x] Architecture plan and development plan in `docs/`
-- [ ] Monorepo layout: `frontend/`, `solver/`, `supabase/` (migrations, seed)
-- [ ] Tooling: Node + pnpm, Python 3.12 + venv, pre-commit (lint/format)
+- [x] Monorepo layout: `frontend/`, `backend/`, `supabase/` (migrations, seed)
+- [ ] Tooling: Node + npm, Java 17 + Maven, pre-commit (lint/format)
 - [ ] `.env.example` files for every component (no secrets committed)
 
 **Done when:** fresh clone → documented setup steps → each component boots
@@ -51,17 +51,17 @@ a student login sees only its section.
 
 **Done when:** an admin can enter the full demo dataset through the UI alone.
 
-## Phase 3 — Solver microservice (Weeks 6–8)
+## Phase 3 — Java backend and CP-SAT solver (Weeks 6–8)
 
-- [ ] FastAPI service: `POST /generate`, `GET /health`, Docker image
-- [ ] Snapshot loader: entities + constraints JSON → solver model
-- [ ] Decision variables: one per required course session → (slot, room, faculty)
-- [ ] Hard constraints (REQ-9): no double-booking; capacity/type fit;
+- [x] Spring Boot service: `POST /generate`, `GET /health`, Docker image
+- [x] Snapshot loader: entities + constraints JSON → solver model
+- [x] Java CP-SAT decision variables for each session's slot, room, and faculty assignment
+- [x] Hard constraints (REQ-9): no double-booking; capacity/type fit;
       qualification; load ≤ max; electives only in reserved blocks
-- [ ] Soft constraints as weighted objective (REQ-10): gaps, day spread,
+- [x] Soft constraints as weighted objective (REQ-10): gaps, day spread,
       load balance
-- [ ] Infeasibility reporting: return the specific unsatisfiable constraint
-      set (REQ-11), surfaced verbatim by the UI
+- [x] Infeasibility reporting: return the relaxed constraint group(s)
+      (REQ-11), surfaced by the UI
 
 **Done when:** demo dataset generates a conflict-free timetable in under
 2 minutes; an over-constrained input returns a named cause.

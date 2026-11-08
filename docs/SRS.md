@@ -39,7 +39,7 @@ TS-SC is an automated institutional timetable generation, resource allocation, a
 ### 1.4 References
 - IEEE Std 830-1998: *Recommended Practice for Software Requirements Specifications*.
 - Google OR-Tools CP-SAT Solver Documentation (v9.x).
-- Vercel Multi-Service Architecture & Service Bindings Specification (2024+).
+- Static frontend deployment with separate Spring Boot backend (2026).
 - Supabase PostgreSQL Row-Level Security & Remote Procedure Calls Guide.
 
 ---
@@ -65,10 +65,10 @@ During system development and deployment testing, critical operational, infrastr
 │                       │                               │ Faculty. Admin gated in muted  │
 │                       │                               │ footer trigger to block probes.│
 ├───────────────────────┼───────────────────────────────┼────────────────────────────────┤
-│ Microservice Hosting  │ External PaaS (Render / Fly)  │ Vercel Multi-Service:          │
-│ & Solver Gateway      │ subject to cold starts (1-2m) │ Vite + FastAPI Gateway +       │
-│                       │ and distributed domains.      │ internal CP-SAT Solver via     │
-│                       │                               │ private IPC service bindings.  │
+│ Backend and Solver Hosting  │ External PaaS (Render / Fly)  │ Separate Spring Boot API:       │
+│ & Solver Gateway      │ subject to cold starts (1-2m) │ Vite + Spring Boot API +       │
+│                       │ and distributed domains.      │ in-process OR-Tools CP-SAT.     │
+│                       │                               │ VITE_API_URL + configured CORS.│
 ├───────────────────────┼───────────────────────────────┼────────────────────────────────┤
 │ Timetable Color Model │ Binary scheduled/free state.  │ Real-Time Trinary Color States:│
 │ for Substitutions     │                               │ 🟡 Yellow: Sub pending/open    │
@@ -101,8 +101,8 @@ During system development and deployment testing, critical operational, infrastr
    - Toggles laboratory batch filtering (`All Batches`, `Batch 1`, `Batch 2`).
    - Observes live color-coded slot updates for ongoing faculty substitutions without login barriers.
 
-4. **Internal Microservices (Solver & API Gateway):**
-   - Headless automated actors executing constraint optimization, candidate scoring, and internal request routing.
+4. **Java Backend (REST API and CP-SAT solver):**
+   - Spring Boot serves REST requests and runs Google OR-Tools Java CP-SAT in process. It also provides the current candidate-ranking and resolution endpoints.
 
 ---
 
@@ -154,39 +154,23 @@ During system development and deployment testing, critical operational, infrastr
 
 ## 4. External Interface & Architectural Requirements
 
-### 4.1 Vercel Multi-Service Topography
+### 4.1 Deployment Topography
 
-The system deploys as a consolidated Vercel Project containing three distinct services interacting via internal service bindings:
+The React + TypeScript frontend is deployed as a static Vercel site. The Java
+17+ Spring Boot backend is deployed separately, serves the REST API, and runs
+the Google OR-Tools CP-SAT solver in-process. Set `VITE_API_URL` to the backend
+origin and set `CORS_ALLOWED_ORIGINS` on the backend to the frontend origin.
+Supabase remains the PostgreSQL, authentication, and RLS data layer. No Python
+service binding or external solver URL is involved.
 
-```
-                          Internet (HTTPS)
-                                 │
-           ┌─────────────────────┴─────────────────────┐
-           │                                           │
-    Rewrite: /api/(.*)                          Rewrite: /(.*)
-           ▼                                           ▼
-┌───────────────────────────┐               ┌───────────────────────────┐
-│     Service: "api"        │               │   Service: "frontend"     │
-│   FastAPI Public Gateway  │               │   Vite + React + TS SPA   │
-│   (Port 8001 / Serverless)│               │   (Static CDN Edge)       │
-└─────────────┬─────────────┘               └─────────────┬─────────────┘
-              │                                           │
-  Internal IPC Service Binding:                           │ Supabase JS SDK
-  format="url", env="SOLVER_URL"                          │ (HTTPS / WSS)
-              ▼                                           │
-┌───────────────────────────┐                             │
-│    Service: "solver"      │                             │
-│   Internal CP-SAT Engine  │                             │
-│   (Port 8000 / Internal)  │                             │
-└───────────────────────────┘                             ▼
-                                            ┌───────────────────────────┐
-                                            │      Supabase Cloud       │
-                                            │  Postgres 15 + RLS + RPC  │
-                                            └───────────────────────────┘
+```text
+Browser -> Static Vite/React frontend -> Spring Boot REST API
+                  |                            |
+                  +---- Supabase JS ------------+---- Java OR-Tools CP-SAT
+                                               (inside backend process)
 ```
 
 ---
-
 ## 5. Conceptual Models & UML Diagrams (SEPM Standards)
 
 ### 5.1 UML Use Case Diagram
@@ -399,7 +383,7 @@ classDiagram
 
 ### 5.3 UML Sequence Diagram: Timetable Generation & Infeasibility Analysis
 
-This sequence details the interaction among the Administrator, the Vite Frontend, Supabase Database, the Public API Gateway, and the internal OR-Tools CP-SAT Solver.
+This sequence details the interaction among the Administrator, the Vite Frontend, Supabase Database, and the Spring Boot API. The Java CP-SAT solver runs inside the backend process.
 
 ```mermaid
 sequenceDiagram
@@ -407,8 +391,7 @@ sequenceDiagram
     actor Admin as Academic Admin
     participant UI as Vite Frontend SPA
     participant DB as Supabase PostgreSQL
-    participant Gateway as FastAPI Gateway (/api)
-    participant Solver as OR-Tools Solver (:8000)
+    participant API as Spring Boot REST API
 
     Admin->>UI: Click "Generate Timetable"
     activate UI
@@ -417,31 +400,25 @@ sequenceDiagram
     DB-->>UI: Return JSON Entity Snapshot
     deactivate DB
 
-    UI->>Gateway: POST /api/generate (Snapshot Payload)
-    activate Gateway
-    Note over Gateway,Solver: Internal Service Binding (SOLVER_URL)
-    Gateway->>Solver: Forward POST /generate
-    activate Solver
+    UI->>API: POST /api/generate (Snapshot Payload)
+    activate API
+    Note over API: Invoke Java OR-Tools CP-SAT in process
 
-    Solver->>Solver: Formulate CP-SAT Variables (slot, room, faculty)
-    Solver->>Solver: Apply Hard Constraints (no-overlap, room-fit, qualifications)
-    Solver->>Solver: Apply Weighted Objective (minimize gaps, daily spread)
+    API->>API: Formulate CP-SAT Variables (slot, room, faculty)
+    API->>API: Apply Hard Constraints (no-overlap, room-fit, qualifications)
+    API->>API: Apply Weighted Objective (minimize gaps, daily spread)
 
     alt Constraints Satisfiable
-        Solver->>Solver: Compute Optimal Assignment
-        Solver-->>Gateway: HTTP 200 { status: "success", entries: [...] }
-        Gateway-->>UI: HTTP 200 { status: "success", entries: [...] }
+        API->>API: Compute optimal assignment
+        API-->>UI: HTTP 200 { status: "success", entries: [...] }
         UI->>DB: INSERT INTO timetable_versions (status='draft') & timetable_entries
         UI-->>Admin: Display Draft in Conflict Inspector
     else Constraints Infeasible (Structural Conflict)
-        Solver->>Solver: Execute diagnose() - Relax Constraint Groups Iteratively
-        Solver->>Solver: Identify Culprit (e.g., Room Capacity or Faculty Load)
-        Solver-->>Gateway: HTTP 200 { status: "infeasible", causes: [...] }
-        Gateway-->>UI: HTTP 200 { status: "infeasible", causes: [...] }
+        API->>API: Diagnose infeasible constraints
+        API-->>UI: HTTP 200 { status: "infeasible", causes: [...] }
         UI-->>Admin: Display Exact Root Cause in Diagnosis Modal
     end
-    deactivate Solver
-    deactivate Gateway
+    deactivate API
     deactivate UI
 ```
 
@@ -573,50 +550,15 @@ stateDiagram-v2
 
 ---
 
-### 5.7 UML Deployment Diagram: Consolidated Vercel Multi-Service Architecture
-
-The deployment diagram illustrates the physical and virtual execution nodes, artifact packaging, execution environments, and network protocols.
+### 5.7 UML Deployment Diagram: Static Frontend and Java Backend
 
 ```mermaid
-flowchart TB
-    subgraph ClientDevice ["Client Tier (Browser / Mobile)"]
-        Browser["Modern Web Browser (Chrome, Firefox, Safari)\n• HTML5 / CSS3 / ES2022\n• LocalStorage (Session Passkeys)"]
-    end
-
-    subgraph VercelEdge ["Vercel Multi-Service Project (Production Edge)"]
-        direction TB
-        
-        subgraph FrontendContainer ["Service: 'frontend' (Vite + React)"]
-            SPA["React 18 TypeScript Single-Page App\n• Public Route: /(.*)\n• Tailwind CSS UI System\n• Real-Time Weekly Grid Engine"]
-        end
-
-        subgraph GatewayContainer ["Service: 'api' (FastAPI Public Gateway)"]
-            Gateway["FastAPI Gateway Instance\n• Public Route: /api/(.*)\n• CORS Middleware\n• Reverse Proxy & Health Aggregator"]
-        end
-
-        subgraph SolverContainer ["Service: 'solver' (Internal Optimization Worker)"]
-            CPSAT["FastAPI + Google OR-Tools CP-SAT\n• Private Internal Service (No Public Route)\n• SAT Solver Algorithm\n• Infeasibility Relaxation Engine"]
-        end
-    end
-
-    subgraph SupabaseCloud ["Database & BaaS Tier (Supabase Cloud)"]
-        direction TB
-        PostgreSQL[("PostgreSQL 15 Database\n• Tables: rooms, courses, sections, etc.\n• Row-Level Security (RLS) Active\n• Stored Procedure: get_section_timetable()")]
-        AuthService["Supabase GoTrue Auth Service\n• JWT Token Issuance (Faculty & Admin)"]
-    end
-
-    %% Network & Binding Connections
-    Browser -- "HTTPS / WSS (REST & Realtime)" --> SPA
-    SPA -- "HTTPS REST (Direct RLS & RPC)" --> PostgreSQL
-    SPA -- "HTTPS REST (Auth Claims)" --> AuthService
-    SPA -- "HTTPS /api/* (Solver Requests)" --> Gateway
-
-    Gateway -- "IPC Service Binding (SOLVER_URL)" --> CPSAT
-    CPSAT -. "Direct Optimization Response" .-> Gateway
+flowchart LR
+    Browser[Browser] --> SPA[React + Vite static frontend]
+    SPA -->|VITE_API_URL / HTTPS JSON| API[Spring Boot REST API]
+    API -->|in-process calls| CPSAT[Google OR-Tools Java CP-SAT]
+    SPA -->|Supabase JS / RLS| DB[Supabase PostgreSQL + Auth]
 ```
-
----
-
 ## 6. Non-Functional Requirements (NFR)
 
 ### 6.1 Performance and Response Times
@@ -631,7 +573,7 @@ flowchart TB
 - **NFR-S4 (Row-Level Security):** All database tables must have PostgreSQL RLS enabled; faculty roles must be cryptographically restricted to their own substitution records and institutional department context.
 
 ### 6.3 Reliability & Availability
-- **NFR-R1 (Zero Cold Starts):** Deployment on Vercel services with multi-service binding shall eliminate the 1-2 minute inactive spin-up latency characteristic of legacy free-tier PaaS providers.
+- **NFR-R1 (Zero Cold Starts):** Deployment on The deployed Spring Boot service shall remain available to the static frontend; hosting and scaling are controlled by the backend deployment provider.
 - **NFR-R2 (Explainable Infeasibility):** The timetable solver shall never fail silently; when an infeasible state occurs, a diagnostic relaxation breakdown shall identify the violating constraint group.
 
 ---
@@ -650,7 +592,7 @@ flowchart TB
 | **F-REQ-4.1 – 4.2** | Zero-Account Passkey Access | Use Case (UC-11), Deployment Diagram | Security Penetration Audit | Implemented |
 | **F-REQ-4.3** | Color-Coded Timetable Grid | State Machine Diagram (5.6) | UI Snapshot Test | Implemented |
 | **F-REQ-5.1 – 5.2** | Obfuscated Administrative Login | Use Case (UC-1), Deployment Diagram | Vulnerability Scan | Implemented |
-| **NFR-R1** | Vercel Multi-Service Binding | Deployment Diagram (5.7) | End-to-End Latency Probe | Implemented |
+| **NFR-R1** | Spring Boot REST API | Deployment Diagram (5.7) | End-to-End Latency Probe | Implemented |
 
 ---
 *End of Software Requirements Specification (SRS) Document.*

@@ -27,3 +27,9 @@ venv/
 
 # graphify
 graphify-out/
+
+# java / maven
+target/
+backend/target/
+*.class
+*.jar
