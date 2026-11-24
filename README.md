@@ -2,7 +2,7 @@
 
 React + TypeScript frontend, Java 17 / Spring Boot backend, in-process Google
 OR-Tools CP-SAT timetable solver, and Supabase (PostgreSQL/Auth) data layer.
-The solver runs in the Java backend; there is no Python runtime in the app.
+The solver runs in the Java backend;
 
 ## Repository layout
 
@@ -17,7 +17,6 @@ The solver runs in the Java backend; there is no Python runtime in the app.
 
 - Java 17 or newer
 - Apache Maven 3.9 or newer
-- Node.js 20 or newer and npm
 - A Supabase project for screens that read or write institutional data
 
 ## Run locally
